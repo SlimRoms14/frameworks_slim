@@ -19,7 +19,6 @@ package org.slim.providers.settings;
 
 import android.app.ActivityManager;
 import android.content.BroadcastReceiver;
-import android.content.ComponentName;
 import android.content.ContentProvider;
 import android.content.ContentResolver;
 import android.content.ContentValues;
@@ -30,7 +29,6 @@ import android.content.SharedPreferences;
 import android.content.UriMatcher;
 import android.content.pm.PackageManager;
 import android.content.pm.UserInfo;
-import android.database.AbstractCursor;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteException;
@@ -38,6 +36,7 @@ import android.database.sqlite.SQLiteQueryBuilder;
 import android.net.Uri;
 import android.os.Binder;
 import android.os.Bundle;
+import android.os.ServiceManager;
 import android.os.SystemProperties;
 import android.os.UserHandle;
 import android.os.UserManager;
@@ -46,12 +45,14 @@ import android.text.TextUtils;
 import android.util.Log;
 import android.util.SparseArray;
 
+import slim.Manifest;
 import slim.provider.SlimSettings;
+import slim.provider.Validators.Validator;
 
-import java.util.HashMap;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
+import java.util.regex.Pattern;
 
 /**
  * The SlimSettingsProvider serves as a {@link ContentProvider} for Slim specific settings
@@ -78,6 +79,11 @@ public class SlimSettingsProvider extends ContentProvider {
 
     private static final String ITEM_MATCHER = "/*";
     private static final String NAME_SELECTION = Settings.NameValueTable.NAME + " = ?";
+
+    // Must match definitions in fw/b
+    // packages/SettingsProvider/src/com/android/providers/settings/SettingsProvider.java
+    public static final String RESULT_ROWS_DELETED  = "result_rows_deleted";
+    public static final String RESULT_SETTINGS_LIST = "result_settings_list";
 
     private static final UriMatcher sUriMatcher = new UriMatcher(UriMatcher.NO_MATCH);
 
@@ -113,6 +119,8 @@ public class SlimSettingsProvider extends ContentProvider {
         mUriBuilder.authority(SlimSettings.AUTHORITY);
 
         mSharedPrefs = getContext().getSharedPreferences(TAG, Context.MODE_PRIVATE);
+
+        ServiceManager.addService("slimsettings", new SlimSettingsService(this));
 
         IntentFilter userFilter = new IntentFilter();
         userFilter.addAction(Intent.ACTION_USER_REMOVED);
@@ -166,43 +174,61 @@ public class SlimSettingsProvider extends ContentProvider {
             }
         }
 
-        // Get methods
-        if (SlimSettings.CALL_METHOD_GET_SYSTEM.equals(method)) {
-            return lookupSingleValue(callingUserId, SlimSettings.System.CONTENT_URI, request);
-        }
-        else if (SlimSettings.CALL_METHOD_GET_SECURE.equals(method)) {
-            return lookupSingleValue(callingUserId, SlimSettings.Secure.CONTENT_URI, request);
-        }
-        else if (SlimSettings.CALL_METHOD_GET_GLOBAL.equals(method)) {
-            return lookupSingleValue(callingUserId, SlimSettings.Global.CONTENT_URI, request);
-        }
+        switch (method) {
+            // Migrate methods
+           /*case SlimSettings.CALL_METHOD_MIGRATE_SETTINGS:
+                migrateSlimSettingsForExistingUsersIfNeeded();
+                return null;
+           case SlimSettings.CALL_METHOD_MIGRATE_SETTINGS_FOR_USER:
+                migrateSlimSettingsForUser(callingUserId);
+                return null;*/
 
-        // Put methods - new value is in the args bundle under the key named by
-        // the Settings.NameValueTable.VALUE static.
-        final String newValue = (args == null)
-                ? null : args.getString(Settings.NameValueTable.VALUE);
+            // Get methods
+            case SlimSettings.CALL_METHOD_GET_SYSTEM:
+                return lookupSingleValue(callingUserId, SlimSettings.System.CONTENT_URI,
+                        request);
+            case SlimSettings.CALL_METHOD_GET_SECURE:
+                return lookupSingleValue(callingUserId, SlimSettings.Secure.CONTENT_URI,
+                        request);
+            case SlimSettings.CALL_METHOD_GET_GLOBAL:
+                return lookupSingleValue(callingUserId, SlimSettings.Global.CONTENT_URI,
+                        request);
 
-        // Framework can't do automatic permission checking for calls, so we need
-        // to do it here.
-        if (SlimSettings.CALL_METHOD_PUT_SYSTEM.equals(method)) {
-            enforceWritePermission(slim.Manifest.permission.WRITE_SETTINGS);
-        } else {
-            enforceWritePermission(slim.Manifest.permission.WRITE_SECURE_SETTINGS);
-        }
+            // Put methods
+            case SlimSettings.CALL_METHOD_PUT_SYSTEM:
+                enforceWritePermission(Manifest.permission.WRITE_SETTINGS);
+                callHelperPut(callingUserId, SlimSettings.System.CONTENT_URI, request, args);
+                return null;
+            case SlimSettings.CALL_METHOD_PUT_SECURE:
+                enforceWritePermission(Manifest.permission.WRITE_SETTINGS);
+                callHelperPut(callingUserId, SlimSettings.Secure.CONTENT_URI, request, args);
+                return null;
+            case SlimSettings.CALL_METHOD_PUT_GLOBAL:
+                enforceWritePermission(Manifest.permission.WRITE_SETTINGS);
+                callHelperPut(callingUserId, SlimSettings.Global.CONTENT_URI, request, args);
+                return null;
 
-        // Put methods
-        final ContentValues values = new ContentValues();
-        values.put(Settings.NameValueTable.NAME, request);
-        values.put(Settings.NameValueTable.VALUE, newValue);
+            // List methods
+            case SlimSettings.CALL_METHOD_LIST_SYSTEM:
+                return callHelperList(callingUserId, SlimSettings.System.CONTENT_URI);
+            case SlimSettings.CALL_METHOD_LIST_SECURE:
+                return callHelperList(callingUserId, SlimSettings.Secure.CONTENT_URI);
+            case SlimSettings.CALL_METHOD_LIST_GLOBAL:
+                return callHelperList(callingUserId, SlimSettings.Global.CONTENT_URI);
 
-        if (SlimSettings.CALL_METHOD_PUT_SYSTEM.equals(method)) {
-            insertForUser(callingUserId, SlimSettings.System.CONTENT_URI, values);
-        }
-        else if (SlimSettings.CALL_METHOD_PUT_SECURE.equals(method)) {
-            insertForUser(callingUserId, SlimSettings.Secure.CONTENT_URI, values);
-        }
-        else if (SlimSettings.CALL_METHOD_PUT_GLOBAL.equals(method)) {
-            insertForUser(callingUserId, SlimSettings.Global.CONTENT_URI, values);
+            // Delete methods
+            case SlimSettings.CALL_METHOD_DELETE_SYSTEM:
+                enforceWritePermission(Manifest.permission.WRITE_SETTINGS);
+                return callHelperDelete(callingUserId, SlimSettings.System.CONTENT_URI,
+                        request);
+            case SlimSettings.CALL_METHOD_DELETE_SECURE:
+                enforceWritePermission(Manifest.permission.WRITE_SETTINGS);
+                return callHelperDelete(callingUserId, SlimSettings.Secure.CONTENT_URI,
+                        request);
+            case SlimSettings.CALL_METHOD_DELETE_GLOBAL:
+                enforceWritePermission(Manifest.permission.WRITE_SETTINGS);
+                return callHelperDelete(callingUserId, SlimSettings.Global.CONTENT_URI,
+                        request);
         }
 
         return null;
@@ -215,6 +241,47 @@ public class SlimSettingsProvider extends ContentProvider {
                     String.format("Permission denial: writing to settings requires %s",
                             permission));
         }
+    }
+
+    // Helper for call() CALL_METHOD_DELETE_* methods
+    private Bundle callHelperDelete(int callingUserId, Uri contentUri, String key) {
+        final int rowsDeleted = deleteForUser(callingUserId, contentUri, NAME_SELECTION,
+                new String[]{ key });
+        final Bundle ret = new Bundle();
+        ret.putInt(RESULT_ROWS_DELETED, rowsDeleted);
+        return ret;
+    }
+
+    // Helper for call() CALL_METHOD_LIST_* methods
+    private Bundle callHelperList(int callingUserId, Uri contentUri) {
+        final ArrayList<String> lines = new ArrayList<String>();
+        final Cursor cursor = queryForUser(callingUserId, contentUri, null, null, null, null);
+        try {
+            while (cursor != null && cursor.moveToNext()) {
+                lines.add(cursor.getString(1) + "=" + cursor.getString(2));
+            }
+        } finally {
+            if (cursor != null) {
+                cursor.close();
+            }
+        }
+        final Bundle ret = new Bundle();
+        ret.putStringArrayList(RESULT_SETTINGS_LIST, lines);
+        return ret;
+    }
+
+    // Helper for call() CALL_METHOD_PUT_* methods
+    private void callHelperPut(int callingUserId, Uri contentUri, String key, Bundle args) {
+        // New value is in the args bundle under the key named by
+        // Settings.NameValueTable.VALUE
+        Log.d("TEST", "callHelperPut : " + contentUri + " : " + key + " : " + args.toString());
+        final String newValue = (args == null)
+                ? null : args.getString(Settings.NameValueTable.VALUE);
+        final ContentValues values = new ContentValues();
+        values.put(Settings.NameValueTable.NAME, key);
+        values.put(Settings.NameValueTable.VALUE, newValue);
+
+        insertForUser(callingUserId, contentUri, values);
     }
 
     /**
@@ -289,17 +356,6 @@ public class SlimSettingsProvider extends ContentProvider {
         } else {
             returnCursor = queryBuilder.query(db, projection, selection, selectionArgs, null,
                     null, sortOrder);
-        }
-
-        // the default Cursor interface does not support per-user observation
-        try {
-            AbstractCursor abstractCursor = (AbstractCursor) returnCursor;
-            abstractCursor.setNotificationUri(getContext().getContentResolver(), uri, userId);
-        } catch (ClassCastException e) {
-            // details of the concrete Cursor implementation have changed and this code has
-            // not been updated to match -- complain and fail hard.
-            Log.wtf(TAG, "Incompatible cursor derivation");
-            throw e;
         }
 
         return returnCursor;
@@ -428,6 +484,11 @@ public class SlimSettingsProvider extends ContentProvider {
 
     @Override
     public int delete(Uri uri, String selection, String[] selectionArgs) {
+        return deleteForUser(UserHandle.getCallingUserId(), uri, selection, selectionArgs);
+    }
+
+    private int deleteForUser(int callingUserId, Uri uri, String selection,
+            String[] selectionArgs) {
         if (uri == null) {
             throw new IllegalArgumentException("Uri cannot be null");
         }
@@ -440,7 +501,6 @@ public class SlimSettingsProvider extends ContentProvider {
             String tableName = getTableNameFromUri(uri);
             checkWritePermissions(tableName);
 
-            int callingUserId = UserHandle.getCallingUserId();
             SlimDatabaseHelper dbHelper = getOrEstablishDatabase(getUserIdForTable(tableName,
                     callingUserId));
 
@@ -679,7 +739,7 @@ public class SlimSettingsProvider extends ContentProvider {
     }
 
     private void validateSystemSettingNameValue(String name, String value) {
-        SlimSettings.Validator validator = SlimSettings.System.VALIDATORS.get(name);
+        Validator validator = SlimSettings.System.VALIDATORS.get(name);
         if (validator == null) {
             return; // TEMP
             //throw new IllegalArgumentException("Invalid setting: " + name);
@@ -692,7 +752,7 @@ public class SlimSettingsProvider extends ContentProvider {
     }
 
     private void validateSecureSettingValue(String name, String value) {
-        SlimSettings.Validator validator = SlimSettings.Secure.VALIDATORS.get(name);
+        Validator validator = SlimSettings.Secure.VALIDATORS.get(name);
 
         // Not all secure settings have validators, but if a validator exists, the validate method
         // should return true

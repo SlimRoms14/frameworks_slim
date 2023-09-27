@@ -1,0 +1,4 @@
+android_library {
+    name: "slim.core",
+    srcs: ["src/**/*.java"],
+}

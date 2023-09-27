@@ -1,0 +1,51 @@
+android_library {
+    name: "SystemUISlim-core",
+    srcs: [
+        "src/**/*.java",
+        "src/**/*.kt",
+    ],
+    resource_dirs: ["res"],
+    static_libs: [
+        "SystemUI-core",
+    ],
+    libs: [
+        "framework-slim",
+    ],
+    manifest: "AndroidManifest.xml",
+    kotlincflags: ["-Xjvm-default=enable"],
+    plugins: ["dagger2-compiler"],
+}
+
+android_app {
+    name: "SystemUISlim",
+    defaults: [
+        "platform_app_defaults",
+        "SystemUI_optimized_defaults",
+    ],
+    static_libs: [
+        "SystemUISlim-core",
+    ],
+    libs: [
+        "framework-slim",
+    ],
+    resource_dirs: [],
+
+    platform_apis: true,
+    system_ext_specific: true,
+    certificate: "platform",
+    privileged: true,
+
+    optimize: {
+        proguard_flags_files: ["proguard.flags"],
+    },
+
+    kotlincflags: ["-Xjvm-default=enable"],
+
+    dxflags: ["--multi-dex"],
+    required: [
+        "privapp_whitelist_com.android.systemui",
+    ],
+    overrides: [
+        "SystemUI",
+    ],
+}

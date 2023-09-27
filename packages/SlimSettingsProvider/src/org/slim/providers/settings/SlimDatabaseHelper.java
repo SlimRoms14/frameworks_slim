@@ -17,25 +17,35 @@
 
 package org.slim.providers.settings;
 
-import android.content.ContentValues;
+import android.Manifest;
+import android.app.AppGlobals;
 import android.content.Context;
+import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
+import android.content.pm.UserInfo;
 import android.content.res.AssetManager;
 import android.content.res.Configuration;
 import android.content.res.Resources;
 import android.database.sqlite.SQLiteDatabase;
+import android.database.sqlite.SQLiteDoneException;
 import android.database.sqlite.SQLiteOpenHelper;
 import android.database.sqlite.SQLiteStatement;
 import android.os.Build;
 import android.os.Environment;
+import android.os.RemoteException;
 import android.os.SystemProperties;
 import android.os.UserHandle;
+import android.os.UserManager;
 import android.provider.Settings;
 import android.text.TextUtils;
 import android.util.DisplayMetrics;
 import android.util.Log;
 
 import java.io.File;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import slim.provider.SlimSettings;
 
@@ -43,9 +53,9 @@ import slim.provider.SlimSettings;
  * The SlimDatabaseHelper allows creation of a database to store Slim specific settings for a user
  * in System, Secure, and Global tables.
  */
-public class SlimDatabaseHelper extends SQLiteOpenHelper{
+public class SlimDatabaseHelper extends SQLiteOpenHelper {
     private static final String TAG = "SlimDatabaseHelper";
-    private static final boolean DEBUG = false;
+    private static final boolean LOCAL_LOGV = false;
 
     private static final String DATABASE_NAME = "slim_settings.db";
     private static final int DATABASE_VERSION = 1;
@@ -77,15 +87,14 @@ public class SlimDatabaseHelper extends SQLiteOpenHelper{
      * @param userId The database path for this user
      * @return The database path string
      */
-    static String dbNameForUser(final int userId) {
-        // The owner gets the unadorned db name;
+    private static String dbNameForUser(Context context, int userId, String baseName) {
         if (userId == UserHandle.USER_OWNER) {
-            return DATABASE_NAME;
+            return context.getDatabasePath(baseName).getPath();
         } else {
             // Place the database in the user-specific data tree so that it's
             // cleaned up automatically when the user is deleted.
             File databaseFile = new File(
-                    Environment.getUserSystemDirectory(userId), DATABASE_NAME);
+                    Environment.getUserSystemDirectory(userId), baseName);
             return databaseFile.getPath();
         }
     }
@@ -96,7 +105,7 @@ public class SlimDatabaseHelper extends SQLiteOpenHelper{
      * @param userId
      */
     public SlimDatabaseHelper(Context context, int userId) {
-        super(context, dbNameForUser(userId), null, DATABASE_VERSION);
+        super(context, dbNameForUser(context, userId, DATABASE_NAME), null, DATABASE_VERSION);
         mContext = context;
         mUserHandle = userId;
 
@@ -130,7 +139,7 @@ public class SlimDatabaseHelper extends SQLiteOpenHelper{
 
             db.setTransactionSuccessful();
 
-            if (DEBUG) Log.d(TAG, "Successfully created tables for slim settings db");
+            if (LOCAL_LOGV) Log.d(TAG, "Successfully created tables for slim settings db");
         } finally {
             db.endTransaction();
         }
@@ -142,7 +151,7 @@ public class SlimDatabaseHelper extends SQLiteOpenHelper{
      * @param tableName The name of the database table to create.
      */
     private void createDbTable(SQLiteDatabase db, String tableName) {
-        if (DEBUG) Log.d(TAG, "Creating table and index for: " + tableName);
+        if (LOCAL_LOGV) Log.d(TAG, "Creating table and index for: " + tableName);
 
         String createTableSql = String.format(CREATE_TABLE_SQL_FORMAT, tableName);
         db.execSQL(createTableSql);
@@ -153,6 +162,7 @@ public class SlimDatabaseHelper extends SQLiteOpenHelper{
 
     @Override
     public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
+        if (LOCAL_LOGV) Log.d(TAG, "Upgrading from version: " + oldVersion + " to " + newVersion);
         int upgradeVersion = oldVersion;
 
         // *** Remember to update DATABASE_VERSION above!
@@ -179,7 +189,7 @@ public class SlimDatabaseHelper extends SQLiteOpenHelper{
      * @param tableName The name of the database table to drop.
      */
     private void dropDbTable(SQLiteDatabase db, String tableName) {
-        if (DEBUG) Log.d(TAG, "Dropping table and index for: " + tableName);
+        if (LOCAL_LOGV) Log.d(TAG, "Dropping table and index for: " + tableName);
 
         String dropTableSql = String.format(DROP_TABLE_SQL_FORMAT, tableName);
         db.execSQL(dropTableSql);
@@ -206,6 +216,8 @@ public class SlimDatabaseHelper extends SQLiteOpenHelper{
         try {
             stmt = db.compileStatement("INSERT OR IGNORE INTO secure(name,value)"
                     + " VALUES(?,?);");
+            // Secure
+
         } finally {
             if (stmt != null) stmt.close();
         }
@@ -216,6 +228,8 @@ public class SlimDatabaseHelper extends SQLiteOpenHelper{
         try {
             stmt = db.compileStatement("INSERT OR IGNORE INTO system(name,value)"
                     + " VALUES(?,?);");
+            // System
+
         } finally {
             if (stmt != null) stmt.close();
         }

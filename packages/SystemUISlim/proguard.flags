@@ -1,0 +1,3 @@
+-include ../../../base/packages/SystemUI/proguard.flags
+
+-keep class org.slimroms.** { *; }

@@ -1,0 +1,11 @@
+java_library {
+    name: "services-slim",
+    installable: true,
+    sdk_version: "core_platform",
+    srcs: ["java/**/*.java"],
+    libs: [
+        "framework",
+        "framework-slim",
+        "services",
+    ],
+}

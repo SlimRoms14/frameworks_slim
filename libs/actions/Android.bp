@@ -1,0 +1,6 @@
+android_library {
+    name: "slim.actions",
+    libs: [ "slim.core", "slim.utils" ],
+    srcs: [ "src/**/*.java" ],
+    resource_dirs: ["res"],
+}

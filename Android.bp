@@ -1,0 +1,105 @@
+//
+// Copyright (C) 2023 The SlimRoms Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+
+android_app {
+    name: "org.slim.framework-res",
+    sdk_version: "core_platform",
+    certificate: "platform",
+
+    manifest: "core/res/AndroidManifest.xml",
+    enforce_uses_libs: false,
+    dex_preopt: {
+        enabled: false,
+    },
+
+    aaptflags: [
+        "--private-symbols",
+        "org.slimroms.internal",
+        "--no-auto-version",
+        "--auto-add-overlay",
+        "--allow-reserved-package-id",
+        "--package-id",
+        "55",
+    ],
+
+    resource_dirs: [
+        "core/res/res",
+    ],
+    export_package_resources: true,
+}
+
+// The LineageOS Platform Framework Library
+// ============================================================
+
+slim_core_src = "core/java/"
+
+filegroup {
+    name: "slim-framework-sources",
+    srcs: [
+        slim_core_src + "/**/*.java",
+        slim_core_src + "/**/*.aidl",
+    ],
+    path: "core",
+}
+
+filegroup {
+    name: "slim-framework-res-sources",
+    srcs: [
+        ":org.slim.framework-res{.aapt.srcjar}",
+    ],
+}
+
+java_library {
+    name: "framework-slim",
+    installable: true,
+    sdk_version: "core_platform",
+
+    libs: [
+        "framework",
+    ],
+
+    srcs: [
+        ":slim-framework-sources",
+        ":slim-framework-res-sources",
+    ],
+
+    aidl: {
+        local_include_dirs: ["core/java"],
+    },
+
+    permitted_packages: [
+        "slim",
+        "slim.action",
+        "slim.content",
+        "slim.provider",
+        "slim.utils",
+        "org.slimroms.internal",
+        "org.slim.internal",
+    ]
+}
+
+// Minimal SlimSettings lib for apex use.
+// ============================================================
+
+java_library {
+    name: "slimsettings",
+    min_sdk_version: "30",
+
+    // SlimSettings is our main target, the rest are deps.
+    srcs: [
+        slim_core_src + "/slim/provider/**/*.java",
+    ],
+}
