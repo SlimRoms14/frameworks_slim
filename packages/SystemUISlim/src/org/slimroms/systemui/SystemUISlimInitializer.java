@@ -6,6 +6,8 @@ import com.android.systemui.SystemUIInitializer;
 import com.android.systemui.dagger.DaggerReferenceGlobalRootComponent;
 import com.android.systemui.dagger.GlobalRootComponent;
 
+import org.slimroms.systemui.dagger.DaggerSlimGlobalRootComponent;
+
 public class SystemUISlimInitializer extends SystemUIInitializer {
     
     public SystemUISlimInitializer(Context context) {
@@ -14,6 +16,6 @@ public class SystemUISlimInitializer extends SystemUIInitializer {
 
     @Override
     protected GlobalRootComponent.Builder getGlobalRootComponentBuilder() {
-        return DaggerReferenceGlobalRootComponent.builder();
+        return DaggerSlimGlobalRootComponent.builder();
     }
 }
