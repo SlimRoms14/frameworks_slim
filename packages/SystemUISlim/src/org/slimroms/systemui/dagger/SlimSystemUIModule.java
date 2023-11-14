@@ -111,6 +111,7 @@ import dagger.Provides;
         StartCentralSurfacesModule.class,
         VolumeModule.class,
         KeyboardShortcutsModule.class,
+        SlimQsModule.class,
 })
 public abstract class SlimSystemUIModule {
 
