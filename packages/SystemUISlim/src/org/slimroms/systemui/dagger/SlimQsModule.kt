@@ -4,6 +4,7 @@ import org.slimroms.systemui.qs.tiles.AmbientDisplayTile
 import org.slimroms.systemui.qs.tiles.CaffeineTile
 import org.slimroms.systemui.qs.tiles.HeadsUpTile
 import org.slimroms.systemui.qs.tiles.SyncTile
+import org.slimroms.systemui.qs.tiles.UsbTetherTile
 
 import com.android.systemui.qs.tileimpl.QSTileImpl
 
@@ -34,4 +35,9 @@ interface SlimQsModule {
     @IntoMap
     @StringKey(AmbientDisplayTile.TILE_SPEC)
     fun bindAmbientDisplayTile(ambientDisplayTile: AmbientDisplayTile): QSTileImpl<*>
+
+    @Binds
+    @IntoMap
+    @StringKey(UsbTetherTile.TILE_SPEC)
+    fun bindUsbTetherTile(usbTetherTile: UsbTetherTile): QSTileImpl<*>
 }
