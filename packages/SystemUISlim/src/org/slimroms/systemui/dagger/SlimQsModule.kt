@@ -1,5 +1,6 @@
 package org.slimroms.systemui.dagger
 
+import org.slimroms.systemui.qs.tiles.AmbientDisplayTile
 import org.slimroms.systemui.qs.tiles.CaffeineTile
 import org.slimroms.systemui.qs.tiles.HeadsUpTile
 import org.slimroms.systemui.qs.tiles.SyncTile
@@ -28,4 +29,9 @@ interface SlimQsModule {
      @IntoMap
      @StringKey(SyncTile.TILE_SPEC)
      fun bindSyncTile(syncTile: SyncTile): QSTileImpl<*>
+
+    @Binds
+    @IntoMap
+    @StringKey(AmbientDisplayTile.TILE_SPEC)
+    fun bindAmbientDisplayTile(ambientDisplayTile: AmbientDisplayTile): QSTileImpl<*>
 }
