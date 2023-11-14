@@ -2,6 +2,7 @@ package org.slimroms.systemui.dagger
 
 import org.slimroms.systemui.qs.tiles.CaffeineTile
 import org.slimroms.systemui.qs.tiles.HeadsUpTile
+import org.slimroms.systemui.qs.tiles.SyncTile
 
 import com.android.systemui.qs.tileimpl.QSTileImpl
 
@@ -22,4 +23,9 @@ interface SlimQsModule {
     @IntoMap
     @StringKey(HeadsUpTile.TILE_SPEC)
     fun bindHeadsUpTile(headsUpTile: HeadsUpTile): QSTileImpl<*>
+
+     @Binds
+     @IntoMap
+     @StringKey(SyncTile.TILE_SPEC)
+     fun bindSyncTile(syncTile: SyncTile): QSTileImpl<*>
 }
